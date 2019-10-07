@@ -21,6 +21,8 @@ var Category = require('./models/Category');
 var SubCategory = require('./models/SubCategory');
 
 var Order = require('./models/Order');
+var Od = require('./models/Od');
+var Buying = require('./models/buying');
 
 // create a new user called chris
 for (let index = 0; index < 10; index++) {
@@ -103,7 +105,7 @@ app.get("/", async (request, response) => {
 
 });
 
-app.post("/person", async (request, response) => {
+app.post("/supplier", async (request, response) => {
     try {
         var suppleir = new Suppleir(request.body);
         var result = await suppleir.save();
@@ -113,7 +115,7 @@ app.post("/person", async (request, response) => {
     }
 });
 
-app.get("/people", async (request, response) => {
+app.get("/suppliers", async (request, response) => {
     try {
         var result = await Suppleir.find().exec();
         response.send(result);
@@ -195,9 +197,11 @@ app.post("/order", async (request, response) => {
         });
         suprecords = await Suppleir.find().where('_id').in(supPiDs).exec();
 
-        cusrecord = await Customer.findById(request.body.customer).exec();
+        var cusrecord = await Customer.findById(request.body.customer).exec();
 
-        var customer = new Customer(cusrecord);
+        cusrecord.openorders += 1;
+        var custpush = await cusrecord.save();
+        var customer = new Customer(custpush);
         order.customer = customer;
 
         // pr = records[0]
@@ -225,37 +229,8 @@ app.post("/order", async (request, response) => {
 
 
 
-        var result = await order.save();
-
-
-        // records.forEach(element => {
-        //     // pr = new Product(element)
-        //     su = {
-        //         name: "Dock",
-        //         location: "Iraq",
-        //         password: "password"
-
-        //     }
-
-        //     pr = {
-        //         name: "Pa323",
-        //         username: "a1a1asala",
-        //         category: "String",
-        //         SubCategory: "String",
-        //         Size: "String",
-        //         price: "String",
-        //         units: "String",
-        //         sup: "5d8dea3fdbc1f12109446982",
-        //         supplier: su
-        //     }
-
-        //     console.log(pr)
-        //     order.items.push({ units: pr, unitPrice: 10, quantity: 20 });
-        //     // order.save();
-        // });
-        // // order.items.push();
         // var result = await order.save();
-        response.send(result);
+        response.send(custpush);
     } catch (error) {
         response.status(500).send(error);
     }
@@ -272,7 +247,57 @@ app.get("/orders", async (request, response) => {
 });
 
 
+//// get order by id
+app.get("/order/:id", async (request, response) => {
+    try {
+        var id = request.params.id;
+        var result = await Order.find({
+            '_id': id
+        }).exec(); // working get order by cust id
+        response.send(result);
+    } catch (error) {
+        response.status(500).send(error);
+
+    }
+});
+
+
 /// orders_Specific_product
+
+app.get("/getcustomerorders/:id", async (request, response) => {
+    try {
+        var id = request.params.id;
+        var result = await Order.find({
+            'customer._id': id
+        }).exec(); // working get order by cust id
+        response.send(result);
+    } catch (error) {
+        response.status(500).send(error);
+
+    }
+});
+
+
+app.get("/allopenorders", async (request, response) => {
+    try {
+
+        var result = await Customer.aggregate([{
+            $group: {
+                _id: null,
+                totalopenorders: {
+                    $sum: '$openorders'
+
+                }
+            }
+        }]).exec(); // working get order by cust id
+
+        response.send(result[0]);
+    } catch (error) {
+        response.status(500).send(error);
+
+    }
+});
+
 
 app.get("/getcustomerorder/:id", async (request, response) => {
     try {
@@ -325,34 +350,328 @@ app.get("/getcustomerorder/:id", async (request, response) => {
 
         // { $match: { price: { $gte: 2122 }, pi: 'Oderc1-2' } }, working
 
-        var result = await Order.aggregate([{
+        var statsAll = await Order.aggregate([{
                 $match: {
-                    'customer._id': Mongoose.Types.ObjectId(id)
+                    'customer._id': Mongoose.Types.ObjectId(id),
+
                 }
             },
             {
+                "$unwind": "$items"
+            }, {
                 $group: {
                     _id: null,
-                    totalprice: {
-                        $sum: '$price'
-                    }
+                    totalsale: {
+                        $sum: '$items.netPrice'
+
+                    },
+                    totalbalance: {
+                        $sum: '$payment.balance'
+                    },
+                    totalpurchase: {
+                        $sum: '$items.netPurchasePrice'
+
+                    },
                 }
             },
             {
                 $project: {
                     _id: 0,
-                    totalprice: 1,
+                    totalsale: 1,
+                    totalbalance: 1,
+                    totalpurchase: 1,
+
+
+                }
+            }
+        ]).exec();
+
+        var statsShipped = await Order.aggregate([{
+                $match: {
+                    'customer._id': Mongoose.Types.ObjectId(id),
+                    'status': 'Shipped'
+
+                }
+            },
+            {
+                "$unwind": "$items"
+            }, {
+                $group: {
+                    _id: null,
+                    totalsale: {
+                        $sum: '$items.netPrice'
+
+                    },
+                    totalbalance: {
+                        $sum: '$payment.balance'
+                    },
+                    totalpurchase: {
+                        $sum: '$items.netPurchasePrice'
+
+                    },
+                }
+            },
+            {
+                $project: {
+                    _id: 0,
+                    totalsale: 1,
+                    totalbalance: 1,
+                    totalpurchase: 1,
+
 
                 }
             }
         ]).exec();
 
 
-        response.send(result);
+        var statsUnshipped = await Order.aggregate([{
+                $match: {
+                    'customer._id': Mongoose.Types.ObjectId(id),
+                    'status': 'Unshipped'
+
+                }
+            },
+            {
+                "$unwind": "$items"
+            }, {
+                $group: {
+                    _id: null,
+                    totalsale: {
+                        $sum: '$items.netPrice'
+                    },
+                    totalbalance: {
+                        $sum: '$payment.balance'
+                    },
+                    totalpurchase: {
+                        $sum: '$items.netPurchasePrice'
+
+                    },
+                }
+            },
+            {
+                $project: {
+                    _id: 0,
+                    totalsale: 1,
+                    totalbalance: 1,
+                    totalpurchase: 1,
+
+
+                }
+            }
+        ]).exec();
+
+
+        var result = await Order.find({
+            'customer._id': id
+        }).exec(); // working get order by cust id
+
+
+        stats = {
+            statsAll: statsAll[0],
+            statsShipped: statsShipped[0],
+            statsUnshipped: statsUnshipped[0],
+        }
+
+        collection = {
+            stats: stats,
+            orders: result
+        }
+
+
+        response.send(collection);
 
 
     } catch (error) {
         response.status(500).send(error);
+    }
+});
+
+
+
+
+//// test OD
+
+app.get("/ods", async (request, response) => {
+    try {
+        var result = await Od.find().exec();
+        response.send(result);
+    } catch (error) {
+        response.status(500).send(error);
+    }
+});
+
+
+app.get("/buyings", async (request, response) => {
+    try {
+        var id = request.params.id;
+        var result = await Buying.find().exec();
+        response.send(result);
+    } catch (error) {
+        response.status(500).send(error);
+    }
+});
+
+app.get("/buyings/:id", async (request, response) => {
+    try {
+        var id = request.params.id;
+        var result = await Buying.find({
+            'product.item.supplierId': Mongoose.Types.ObjectId(id)
+        }).exec();
+        response.send(result);
+    } catch (error) {
+        response.status(500).send(error);
+    }
+});
+
+
+
+///test
+
+
+app.post("/testgetsupplierdetails", async (request, response) => {
+    try {
+
+        var body = request.body;
+
+
+        var products = await Buying.find({
+            'product.item.supplierId': Mongoose.Types.ObjectId(body.supplierId),
+        }).exec();
+
+
+        var orders = await Od.find({
+            'items.product.item.supplierId': Mongoose.Types.ObjectId(id)
+        }).exec(); // working get order by cust id\
+
+
+
+        var productsSnC = await Buying.find({
+            'product.item.supplierId': Mongoose.Types.ObjectId(body.supplierId),
+            'customer._id': Mongoose.Types.ObjectId(body.customerId)
+        }).exec();
+
+        var ordersSnC = await Od.find({
+            'items.product.item.supplierId': Mongoose.Types.ObjectId(body.supplierId),
+            'customer._id': Mongoose.Types.ObjectId(body.customerId)
+        }).exec(); // working get order by cust id\
+
+
+
+        // var stats = await Buying.aggregate([{
+        //         $match: {
+        //             'product.item.supplierId': Mongoose.Types.ObjectId(id),
+
+        //         }
+        //     },
+        //     {
+        //         $group: {
+        //             _id: null,
+        //             totalsale: {
+        //                 $sum: '$product.netPurchasePrice'
+
+        //             }
+        //         }
+        //     },
+        //     {
+        //         $project: {
+        //             _id: 0,
+        //             totalsale: 1,
+
+
+        //         }
+        //     }
+        // ]).exec();
+
+
+
+
+
+        // collection = {
+        //     stats: {
+        //         totalSales: 0,
+        //         totalCustomerSales: 0,
+        //         contribution: 0,
+        //         contributionPercentage: 0
+        //     },
+        //     product: products,
+        //     orders: orders
+        // }
+
+
+        response.send(ordersSnC);
+    } catch (error) {
+        response.status(500).send(error);
+
+    }
+});
+
+
+
+app.get("/getsupplierdetails/:id", async (request, response) => {
+    try {
+        var id = request.params.id;
+
+
+
+
+
+
+        var products = await Buying.find({
+            'product.item.supplierId': Mongoose.Types.ObjectId(id)
+        }).exec();
+
+
+        var orders = await Od.find({
+            'items.product.item.supplierId': Mongoose.Types.ObjectId(id)
+        }).exec(); // working get order by cust id\
+
+
+
+        var stats = await Buying.aggregate([{
+                $match: {
+                    'product.item.supplierId': Mongoose.Types.ObjectId(id),
+
+                }
+            },
+            {
+                $group: {
+                    _id: null,
+                    totalsale: {
+                        $sum: '$items.product.netPurchasePrice'
+
+                    }
+                }
+            },
+            {
+                $project: {
+                    _id: 0,
+                    totalsale: 1,
+
+
+                }
+            }
+        ]).exec();
+
+
+
+
+
+        collection = {
+            stats: {
+                totalSales: 0,
+                totalCustomerSales: 0,
+                contribution: 0,
+                contributionPercentage: 0
+            },
+            product: products,
+            orders: orders
+        }
+
+
+        response.send(collection);
+    } catch (error) {
+        response.status(500).send(error);
+
     }
 });
 

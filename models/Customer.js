@@ -12,6 +12,10 @@ var customerSchema = new Schema({
   contactPersonName: String,
   contactPersonPhone: String,
   companyLogo: String,
+  openorders: {
+    type: Number,
+    default: 0
+  }
 
 });
 

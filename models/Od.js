@@ -6,6 +6,8 @@ var Product = require('./Product');
 // foriegn  Schemas
 ProductSchema = mongoose.model('Product').schema
 CustomerSchema = mongoose.model('Customer').schema
+var Buying = require('./buying');
+var Customer = require('./Customer');
 
 // create a schema
 
@@ -33,14 +35,16 @@ var orderSchema = new Schema({
   created_at: Date,
   customer: CustomerSchema,
   items: [{
-    item: ProductSchema,
-    itemL: mongoose.Schema.Types.ObjectId,
-    // product: Product,
-    unitPrice: Number,
-    quantity: Number,
-    netPrice: Number,
-    netPurchasePrice: Number,
-    customerProductName: String
+    product: {
+      item: ProductSchema,
+      itemL: mongoose.Schema.Types.ObjectId,
+      // product: Product,
+      unitPrice: Number,
+      quantity: Number,
+      netPrice: Number,
+      netPurchasePrice: Number,
+      customerProductName: String
+    }
   }],
 
 
@@ -64,9 +68,20 @@ orderSchema.pre("save", function (next) {
   var total = 0
   var purchasetotal = 0
   this.items.forEach(element => {
-    element.netPrice = element.unitPrice * element.quantity
-    total = total + element.netPrice
-    element.netPurchasePrice = element.item.price * element.quantity
+    element.product.netPrice = element.product.unitPrice * element.product.quantity
+    total = total + element.product.netPrice
+    element.product.netPurchasePrice = element.product.item.price * element.product.quantity
+
+
+    // var product = new Buying();
+    // product.orderId = this._id
+    // product.po = this.po
+    // product.pi = this.pi
+    // product.category = "test"
+    // product.SubCategory = this.SubCategory
+    // product.product = element.product
+    // product.save();
+
 
   });
 
@@ -77,11 +92,26 @@ orderSchema.pre("save", function (next) {
   next();
 });
 
-// orderSchema.pre('save', () => console.log('Hello from pre save'));
-// orderSchema.pre('save', async function () {
-//   await doStuff();
 
-// });
+
+// orderSchema.pre('save', () => console.log('Hello from pre save'));
+orderSchema.post('save', async function () {
+  this.items.forEach(element => {
+
+    var product = new Buying();
+    product.orderId = this._id
+    product.po = this.po
+    product.pi = this.pi
+    product.category = "test"
+    product.subcategory = this.SubCategory
+    product.product = element.product
+    product.customer = new Customer(this.customer)
+    product.save();
+
+
+  });
+
+});
 
 
 // async function doStuff() {
@@ -93,7 +123,7 @@ orderSchema.pre("save", function (next) {
 // the schema is useless so far
 // we need to create a model using it
 orderSchema.plugin(require('mongoose-autopopulate'));
-var Order = mongoose.model('Order', orderSchema);
+var Order = mongoose.model('Od', orderSchema);
 
 // make this available to our users in our Node applications
 module.exports = Order;

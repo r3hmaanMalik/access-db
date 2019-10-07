@@ -12,7 +12,7 @@ var productSchema = new Schema({
   subCategory: String,
   discription: String,
   size: String,
-  price: String,
+  price: Number,
   unit: {
     type: String,
     enum: ['pcs', 'set', 'box']
