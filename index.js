@@ -2,6 +2,7 @@ const Express = require("express");
 const Mongoose = require("mongoose");
 const BodyParser = require("body-parser");
 var faker = require("faker");
+const fileUpload = require('express-fileupload');
 
 var app = Express();
 
@@ -11,6 +12,11 @@ app.use(
         extended: true
     })
 );
+app.use(fileUpload({
+    safeFileNames: true,
+    preserveExtension: true,
+    debug: true
+}));
 
 // Mongoose.connect("mongodb://localhost/myappdatabase2");
 Mongoose.connect(
@@ -717,6 +723,39 @@ app.post("/filter", async (request, response) => {
         var products = await Buying.find(qurey).exec();
 
         response.send(products);
+    } catch (error) {
+        response.status(500).send(error);
+    }
+});
+
+///upload Test
+app.post('/upload', function (request, res) {
+    if (!request.files || Object.keys(request.files).length === 0) {
+        return res.status(400).send('No files were uploaded.');
+    }
+
+    // The name of the input field (i.e. "sampleFile") is used to retrieve the uploaded file
+    let sampleFile = request.files.companyLogo;
+
+    // Use the mv() method to place the file somewhere on your server
+    sampleFile.mv('uploads/' + sampleFile.name, function (err) {
+        if (err) {
+            return res.status(500).send(err);
+        } else {
+            var customer = new Customer(request.body);
+            customer.companyLogo = 'uploads/' + sampleFile.name
+            customer.save();
+            res.send('File uploaded!');
+        }
+    });
+    // res.send(sampleFile);
+
+});
+app.post("/testcustomer", async (request, response) => {
+    try {
+        var customer = new Customer(request.body);
+        var result = await customer.save();
+        response.send(result);
     } catch (error) {
         response.status(500).send(error);
     }
