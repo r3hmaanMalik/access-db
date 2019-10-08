@@ -12,10 +12,10 @@ app.use(
     })
 );
 
-Mongoose.connect("mongodb://localhost/myappdatabase2");
-// Mongoose.connect(
-//     "mongodb+srv://admin:admin@cluster0-6a3l3.mongodb.net/excessmongoosedb?retryWrites=true&w=majority"
-// );
+// Mongoose.connect("mongodb://localhost/myappdatabase2");
+Mongoose.connect(
+    "mongodb+srv://admin:admin@cluster0-6a3l3.mongodb.net/excessmongoosedb?retryWrites=true&w=majority"
+);
 
 // if our user.js file is at app/models/user.js
 var Suppleir = require("./models/Suppleir");
