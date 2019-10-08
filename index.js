@@ -12,10 +12,10 @@ app.use(
     })
 );
 
-// Mongoose.connect('mongodb://localhost/myappdatabase2');
-Mongoose.connect(
-    "mongodb+srv://admin:admin@cluster0-6a3l3.mongodb.net/excessmongoosedb?retryWrites=true&w=majority"
-);
+Mongoose.connect("mongodb://localhost/myappdatabase2");
+// Mongoose.connect(
+//     "mongodb+srv://admin:admin@cluster0-6a3l3.mongodb.net/excessmongoosedb?retryWrites=true&w=majority"
+// );
 
 // if our user.js file is at app/models/user.js
 var Suppleir = require("./models/Suppleir");
@@ -493,10 +493,39 @@ app.post("/testgetsupplierdetails", async (request, response) => {
             }).exec();
 
             var orders = await Od.find({
-                "items.product.item.supplierId": Mongoose.Types.ObjectId(body.supplierId)
+                "items.product.item.supplierId": Mongoose.Types.ObjectId(
+                    body.supplierId
+                )
             }).exec(); // working get order by cust id\
 
+            var suppleirtotalpurchase = await Buying.aggregate([{
+                    $match: {
+                        "product.item.supplierId": Mongoose.Types.ObjectId(body.supplierId)
+                    }
+                },
+                {
+                    $group: {
+                        _id: null,
+                        totalsale: {
+                            $sum: "$product.netPurchasePrice"
+                        }
+                    }
+                },
+                {
+                    $project: {
+                        _id: 0,
+                        totalsale: 1
+                    }
+                }
+            ]).exec();
 
+            collection = {
+                stats: {
+                    totalSales: suppleirtotalpurchase[0].totalsale
+                },
+                product: products,
+                orders: orders
+            };
         } else {
             var products = await Buying.find({
                 "product.item.supplierId": Mongoose.Types.ObjectId(body.supplierId),
@@ -504,36 +533,32 @@ app.post("/testgetsupplierdetails", async (request, response) => {
             }).exec();
 
             var orders = await Od.find({
-                "items.product.item.supplierId": Mongoose.Types.ObjectId(body.supplierId),
+                "items.product.item.supplierId": Mongoose.Types.ObjectId(
+                    body.supplierId
+                ),
                 "customer._id": Mongoose.Types.ObjectId(body.customerId)
             }).exec(); // working get order by cust id\
 
-
-
             var customertotalsale = await Od.aggregate([{
                     $match: {
-                        'customer._id': Mongoose.Types.ObjectId(body.customerId),
-
+                        "customer._id": Mongoose.Types.ObjectId(body.customerId)
                     }
                 },
                 {
                     $group: {
                         _id: null,
                         totalsale: {
-                            $sum: '$price'
-
+                            $sum: "$price"
                         }
                     }
                 },
                 {
                     $project: {
                         _id: 0,
-                        totalsale: 1,
-
+                        totalsale: 1
                     }
                 }
             ]).exec();
-
 
             var suppliercontribution = await Buying.aggregate([{
                     $match: {
@@ -545,60 +570,52 @@ app.post("/testgetsupplierdetails", async (request, response) => {
                     $group: {
                         _id: null,
                         totalsale: {
-                            $sum: '$product.netPrice'
-
+                            $sum: "$product.netPrice"
                         }
                     }
                 },
                 {
                     $project: {
                         _id: 0,
-                        totalsale: 1,
-
+                        totalsale: 1
                     }
                 }
             ]).exec();
 
-        }
-
-
-        var suppleirtotalpurchase = await Buying.aggregate([{
-                $match: {
-                    'product.item.supplierId': Mongoose.Types.ObjectId(body.supplierId),
-
-                }
-            },
-            {
-                $group: {
-                    _id: null,
-                    totalsale: {
-                        $sum: '$product.netPurchasePrice'
-
+            var suppleirtotalpurchase = await Buying.aggregate([{
+                    $match: {
+                        "product.item.supplierId": Mongoose.Types.ObjectId(body.supplierId)
+                    }
+                },
+                {
+                    $group: {
+                        _id: null,
+                        totalsale: {
+                            $sum: "$product.netPurchasePrice"
+                        }
+                    }
+                },
+                {
+                    $project: {
+                        _id: 0,
+                        totalsale: 1
                     }
                 }
-            },
-            {
-                $project: {
-                    _id: 0,
-                    totalsale: 1,
+            ]).exec();
 
-                }
-            }
-        ]).exec();
-
-
-
-        collection = {
-            stats: {
-                totalSales: suppleirtotalpurchase[0].totalsale,
-                totalCustomerSales: customertotalsale[0].totalsale,
-                contribution: suppliercontribution[0].totalsale,
-                contributionPercentage: suppliercontribution[0].totalsale / customertotalsale[0].totalsale * 100
-            },
-            product: products,
-            orders: orders
+            collection = {
+                stats: {
+                    totalSales: suppleirtotalpurchase[0].totalsale,
+                    totalCustomerSales: customertotalsale[0].totalsale,
+                    contribution: suppliercontribution[0].totalsale,
+                    contributionPercentage: (suppliercontribution[0].totalsale /
+                            customertotalsale[0].totalsale) *
+                        100
+                },
+                product: products,
+                orders: orders
+            };
         }
-
         response.send(collection);
     } catch (error) {
         response.status(500).send(error);
@@ -654,6 +671,57 @@ app.get("/getsupplierdetails/:id", async (request, response) => {
         response.status(500).send(error);
     }
 });
+
+/// filter product
+
+app.post("/filter", async (request, response) => {
+    try {
+        var req = request.body;
+        const qurey = {};
+        const entries = Object.keys(req);
+
+        if (req.pi == null && req.po == null) {
+            entries.forEach(element => {
+                switch (element) {
+                    case "customerId":
+                        qurey["customer._id"] = Mongoose.Types.ObjectId(req.customerId);
+                        break;
+                    case "category":
+                        qurey["product.item.category"] = req.category;
+                        break;
+                    case "subcategory":
+                        qurey["product.item.subCategory"] = req.subcategory;
+                        break;
+                    default:
+                        break;
+                }
+            });
+        } else {
+            entries.forEach(element => {
+                switch (element) {
+                    case "pi":
+                        qurey["pi"] = req.pi;
+                        break;
+                    case "po":
+                        qurey["po"] = req.po;
+                        break;
+                    default:
+                        break;
+                }
+            });
+        }
+        // const q = {
+        //   "product.item.supplierId": Mongoose.Types.ObjectId(body.supplierId),
+        //   "customer._id": Mongoose.Types.ObjectId(body.customerId)
+        // };
+        var products = await Buying.find(qurey).exec();
+
+        response.send(products);
+    } catch (error) {
+        response.status(500).send(error);
+    }
+});
+
 const port = process.env.PORT || 3000;
 app.listen(port, () => {
     console.log("Listening at :3000...");
