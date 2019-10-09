@@ -131,7 +131,7 @@ app.get("/suppliers", async (request, response) => {
 
 app.post("/product", async (request, response) => {
     try {
-        var supL = await Suppleir.findById(request.body.sup).exec();
+        var supL = await Suppleir.findById(request.body.supplierId).exec();
         var product = new Product(request.body);
         product.supplier = new Suppleir(supL);
         var result = await product.save();
